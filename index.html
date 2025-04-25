@@ -1,86 +1,287 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<title>Random Walk Game</title>
-<style>
-  body { margin: 0; overflow: hidden; display: flex; justify-content: center; align-items: center; min-height: 100vh; background-color: #f0f0f0; }
-  canvas { border: 1px solid #333; background-color: #fff; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bird Swarm Simulation</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: Arial, sans-serif;
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+        h1 {
+            margin-bottom: 10px;
+            color: #ffffff;
+        }
+        canvas {
+            border: 1px solid #555;
+            background-color: #1e1e1e;
+            margin-bottom: 15px;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 20px;
+            max-width: 600px;
+            background-color: #242424;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+        }
+        label {
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #bbbbbb;
+        }
+        input[type="range"] {
+            background-color: #333;
+        }
+        button {
+            padding: 8px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .info {
+            max-width: 600px;
+            margin-top: 20px;
+            text-align: justify;
+            background-color: #242424;
+            padding: 15px;
+            border-radius: 8px;
+        }
+    </style>
 </head>
 <body>
-  <canvas id="gameCanvas"></canvas>
-  <script>
-    const canvas = document.getElementById('gameCanvas');
-    const ctx = canvas.getContext('2d');
-    const gridSize = 20; // Size of each grid cell
-    let walkerX = Math.floor(canvas.width / 2 / gridSize);
-    let walkerY = Math.floor(canvas.height / 2 / gridSize);
-    const trail = [];
-    let gameInterval;
-    const moveInterval = 200; // Milliseconds between steps
+    <h1>Bird Swarm Simulation (Vicsek Model)</h1>
 
-    function resizeCanvas() {
-      canvas.width = window.innerWidth * 0.8;
-      canvas.height = window.innerHeight * 0.8;
-      // Recenter the walker after resize
-      walkerX = Math.floor(canvas.width / 2 / gridSize);
-      walkerY = Math.floor(canvas.height / 2 / gridSize);
-      trail.length = 0; // Clear the trail on resize for simplicity
-      draw();
-    }
+    <canvas id="simulationCanvas" width="600" height="600"></canvas>
 
-    function getRandomDirection() {
-      const directions = [[1, 0], [-1, 0], [0, 1], [0, -1]]; // Right, Left, Down, Up
-      return directions[Math.floor(Math.random() * directions.length)];
-    }
+    <div class="controls">
+        <div class="control-group">
+            <label for="numBirds">Number of Birds:</label>
+            <input type="range" id="numBirds" min="10" max="500" value="200" step="10">
+            <span id="numBirdsValue">200</span>
+        </div>
 
-    function moveWalker() {
-      const direction = getRandomDirection();
-      walkerX += direction[0];
-      walkerY += direction[1];
+        <div class="control-group">
+            <label for="radius">Interaction Radius:</label>
+            <input type="range" id="radius" min="10" max="100" value="50" step="5">
+            <span id="radiusValue">50</span>
+        </div>
 
-      // Keep walker within bounds (optional, but makes it more contained)
-      const gridWidth = Math.floor(canvas.width / gridSize);
-      const gridHeight = Math.floor(canvas.height / gridSize);
-      walkerX = Math.max(0, Math.min(walkerX, gridWidth - 1));
-      walkerY = Math.max(0, Math.min(walkerY, gridHeight - 1));
+        <div class="control-group">
+            <label for="noise">Noise Level (η):</label>
+            <input type="range" id="noise" min="0" max="1" value="0.15" step="0.05">
+            <span id="noiseValue">0.15</span>
+        </div>
 
-      trail.push({ x: walkerX, y: walkerY });
-      draw();
-    }
+        <div class="control-group">
+            <label for="speed">Speed:</label>
+            <input type="range" id="speed" min="0.5" max="3" value="1" step="0.1">
+            <span id="speedValue">1</span>
+        </div>
 
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+        <button id="resetBtn">Reset Simulation</button>
+    </div>
 
-      // Draw the trail
-      ctx.strokeStyle = 'blue';
-      ctx.lineWidth = gridSize / 5;
-      ctx.beginPath();
-      if (trail.length > 0) {
-        ctx.moveTo(trail[0].x * gridSize + gridSize / 2, trail[0].y * gridSize + gridSize / 2);
-        for (let i = 1; i < trail.length; i++) {
-          ctx.lineTo(trail[i].x * gridSize + gridSize / 2, trail[i].y * gridSize + gridSize / 2);
+    <div class="info">
+        <p>This simulation implements the <strong>Vicsek Model</strong> to study flocking behavior. Each bird adjusts its direction based on the average of its nearby neighbors, plus a random noise factor.</p>
+        <p>You can adjust the parameters to see how they affect the emergent behavior of the system.</p>
+    </div>
+
+    <script>
+        // Simulation configuration
+        const canvas = document.getElementById('simulationCanvas');
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width;
+        const height = canvas.height;
+
+        // Control parameters
+        let numBirds = 200;
+        let radius = 50;
+        let noise = 0.15;
+        let speed = 1;
+
+        // Birds state
+        let birds = [];
+
+        // Function to initialize the simulation
+        function initializeSimulation() {
+            birds = [];
+            for (let i = 0; i < numBirds; i++) {
+                birds.push({
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+                    // Random orientation in radians
+                    orientation: Math.random() * 2 * Math.PI - Math.PI
+                });
+            }
         }
-      }
-      ctx.stroke();
 
-      // Draw the current position of the walker
-      ctx.fillStyle = 'red';
-      ctx.fillRect(walkerX * gridSize, walkerY * gridSize, gridSize, gridSize);
-    }
+        // Function to update bird states
+        function updateBirds() {
+            const newOrientations = new Array(birds.length);
 
-    function startGame() {
-      if (gameInterval) {
-        clearInterval(gameInterval);
-      }
-      trail.length = 0; // Reset the trail
-      resizeCanvas(); // Initialize canvas size and walker position
-      gameInterval = setInterval(moveWalker, moveInterval);
-    }
+            // For each bird, find neighbors and calculate average orientation
+            for (let i = 0; i < birds.length; i++) {
+                const bird = birds[i];
+                let sumSin = 0;
+                let sumCos = 0;
+                let count = 0;
 
-    // Initialize and start the game
-    window.addEventListener('resize', resizeCanvas);
-    startGame();
-  </script>
+                // Include the bird itself in the calculation
+                sumSin += Math.sin(bird.orientation);
+                sumCos += Math.cos(bird.orientation);
+                count++;
+
+                // Find neighbors within radius
+                for (let j = 0; j < birds.length; j++) {
+                    if (i === j) continue;
+
+                    const neighbor = birds[j];
+                    // Calculate distance considering periodic boundary conditions
+                    let dx = Math.abs(bird.x - neighbor.x);
+                    let dy = Math.abs(bird.y - neighbor.y);
+
+                    // Periodic boundary conditions
+                    dx = dx > width / 2 ? width - dx : dx;
+                    dy = dy > height / 2 ? height - dy : dy;
+
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance <= radius) {
+                        sumSin += Math.sin(neighbor.orientation);
+                        sumCos += Math.cos(neighbor.orientation);
+                        count++;
+                    }
+                }
+
+                // Calculate new orientation
+                if (count > 0) {
+                    // Average orientation of neighbors
+                    const avgOrientation = Math.atan2(sumSin / count, sumCos / count);
+                    // Add noise
+                    newOrientations[i] = avgOrientation + (Math.random() * 2 * Math.PI - Math.PI) * noise;
+                } else {
+                    // If no neighbors, keep current orientation
+                    newOrientations[i] = bird.orientation;
+                }
+            }
+
+            // Update orientations and positions
+            for (let i = 0; i < birds.length; i++) {
+                const bird = birds[i];
+                bird.orientation = newOrientations[i];
+
+                // Update position based on orientation
+                bird.x += Math.cos(bird.orientation) * speed;
+                bird.y += Math.sin(bird.orientation) * speed;
+
+                // Periodic boundary conditions
+                if (bird.x < 0) bird.x += width;
+                if (bird.x >= width) bird.x -= width;
+                if (bird.y < 0) bird.y += height;
+                if (bird.y >= height) bird.y -= height;
+            }
+        }
+
+        // Function to draw the birds
+        function drawBirds() {
+            ctx.clearRect(0, 0, width, height);
+
+            // Draw each bird as an arrow indicating its direction
+            birds.forEach(bird => {
+                ctx.save();
+                ctx.translate(bird.x, bird.y);
+                ctx.rotate(bird.orientation);
+
+                // Draw a triangle to represent the bird
+                ctx.beginPath();
+                ctx.moveTo(10, 0);
+                ctx.lineTo(-5, -5);
+                ctx.lineTo(-2, 0);
+                ctx.lineTo(-5, 5);
+                ctx.closePath();
+
+                // Color based on orientation for better visualization
+                const hue = ((bird.orientation + Math.PI) / (2 * Math.PI)) * 360;
+                ctx.fillStyle = `hsl(${hue}, 90%, 70%)`;
+                ctx.fill();
+
+                // Add a slight glow effect
+                ctx.shadowColor = `hsl(${hue}, 90%, 50%)`;
+                ctx.shadowBlur = 5;
+                ctx.strokeStyle = `hsl(${hue}, 90%, 80%)`;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+
+                ctx.restore();
+            });
+        }
+
+        // Main animation loop
+        function animate() {
+            updateBirds();
+            drawBirds();
+            requestAnimationFrame(animate);
+        }
+
+        // Initialize and start the simulation
+        initializeSimulation();
+        animate();
+
+        // Set up interface controls
+        const numBirdsSlider = document.getElementById('numBirds');
+        const numBirdsValue = document.getElementById('numBirdsValue');
+        const radiusSlider = document.getElementById('radius');
+        const radiusValue = document.getElementById('radiusValue');
+        const noiseSlider = document.getElementById('noise');
+        const noiseValue = document.getElementById('noiseValue');
+        const speedSlider = document.getElementById('speed');
+        const speedValue = document.getElementById('speedValue');
+        const resetBtn = document.getElementById('resetBtn');
+
+        numBirdsSlider.addEventListener('input', function() {
+            numBirds = parseInt(this.value);
+            numBirdsValue.textContent = numBirds;
+            initializeSimulation();
+        });
+
+        radiusSlider.addEventListener('input', function() {
+            radius = parseInt(this.value);
+            radiusValue.textContent = radius;
+        });
+
+        noiseSlider.addEventListener('input', function() {
+            noise = parseFloat(this.value);
+            noiseValue.textContent = noise.toFixed(2);
+        });
+
+        speedSlider.addEventListener('input', function() {
+            speed = parseFloat(this.value);
+            speedValue.textContent = speed.toFixed(1);
+        });
+
+        resetBtn.addEventListener('click', function() {
+            initializeSimulation();
+        });
+    </script>
 </body>
 </html>
