@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Random Walk Game</title>
+<style>
+  body { margin: 0; overflow: hidden; display: flex; justify-content: center; align-items: center; min-height: 100vh; background-color: #f0f0f0; }
+  canvas { border: 1px solid #333; background-color: #fff; }
+</style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const gridSize = 20; // Size of each grid cell
+    let walkerX = Math.floor(canvas.width / 2 / gridSize);
+    let walkerY = Math.floor(canvas.height / 2 / gridSize);
+    const trail = [];
+    let gameInterval;
+    const moveInterval = 200; // Milliseconds between steps
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth * 0.8;
+      canvas.height = window.innerHeight * 0.8;
+      // Recenter the walker after resize
+      walkerX = Math.floor(canvas.width / 2 / gridSize);
+      walkerY = Math.floor(canvas.height / 2 / gridSize);
+      trail.length = 0; // Clear the trail on resize for simplicity
+      draw();
+    }
+
+    function getRandomDirection() {
+      const directions = [[1, 0], [-1, 0], [0, 1], [0, -1]]; // Right, Left, Down, Up
+      return directions[Math.floor(Math.random() * directions.length)];
+    }
+
+    function moveWalker() {
+      const direction = getRandomDirection();
+      walkerX += direction[0];
+      walkerY += direction[1];
+
+      // Keep walker within bounds (optional, but makes it more contained)
+      const gridWidth = Math.floor(canvas.width / gridSize);
+      const gridHeight = Math.floor(canvas.height / gridSize);
+      walkerX = Math.max(0, Math.min(walkerX, gridWidth - 1));
+      walkerY = Math.max(0, Math.min(walkerY, gridHeight - 1));
+
+      trail.push({ x: walkerX, y: walkerY });
+      draw();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw the trail
+      ctx.strokeStyle = 'blue';
+      ctx.lineWidth = gridSize / 5;
+      ctx.beginPath();
+      if (trail.length > 0) {
+        ctx.moveTo(trail[0].x * gridSize + gridSize / 2, trail[0].y * gridSize + gridSize / 2);
+        for (let i = 1; i < trail.length; i++) {
+          ctx.lineTo(trail[i].x * gridSize + gridSize / 2, trail[i].y * gridSize + gridSize / 2);
+        }
+      }
+      ctx.stroke();
+
+      // Draw the current position of the walker
+      ctx.fillStyle = 'red';
+      ctx.fillRect(walkerX * gridSize, walkerY * gridSize, gridSize, gridSize);
+    }
+
+    function startGame() {
+      if (gameInterval) {
+        clearInterval(gameInterval);
+      }
+      trail.length = 0; // Reset the trail
+      resizeCanvas(); // Initialize canvas size and walker position
+      gameInterval = setInterval(moveWalker, moveInterval);
+    }
+
+    // Initialize and start the game
+    window.addEventListener('resize', resizeCanvas);
+    startGame();
+  </script>
+</body>
+</html>
