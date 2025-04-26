@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bird Swarm Simulation</title>
+    <title>Flock of Birds (Vicsek model)</title>
     <style>
         body {
             margin: 0;
@@ -23,13 +23,14 @@
             border: 1px solid #555;
             background-color: #1e1e1e;
             margin-bottom: 15px;
+            cursor: none; /* Oculta el cursor real sobre el canvas */
         }
         .controls {
             display: flex;
             flex-wrap: wrap;
             gap: 15px;
             margin-bottom: 20px;
-            max-width: 600px;
+            max-width: 800px;
             background-color: #242424;
             padding: 15px;
             border-radius: 8px;
@@ -58,36 +59,96 @@
         button:hover {
             background-color: #45a049;
         }
+        .sound-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            background-color: #242424;
+            padding: 15px;
+            border-radius: 8px;
+        }
         .info {
-            max-width: 600px;
+            max-width: 800px;
             margin-top: 20px;
             text-align: justify;
             background-color: #242424;
             padding: 15px;
             border-radius: 8px;
         }
+        .stats {
+            width: 600px;
+            background-color: #242424;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+        .stat-value {
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        .sound-wave {
+            position: absolute;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.7);
+            pointer-events: none; /* Para que no interfiera con clics en el canvas */
+            animation: expand-fade 2s forwards;
+        }
+        @keyframes expand-fade {
+            0% {
+                transform: scale(0);
+                opacity: 0.7;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 0;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>Bird Swarm Simulation (Vicsek Model)</h1>
+    <h1>Flock of Birds (Vicsek model)</h1>
+    <div class="stats">
+        <div class="stat-item">
+            <span>Average velocity of the center of mass:</span>
+            <span id="avgVelocity" class="stat-value">0.000</span>
+        </div>
+        <div class="stat-item">
+            <span>Global order (polarization):</span>
+            <span id="orderParameter" class="stat-value">0.000</span>
+        </div>
+    </div>
 
     <canvas id="simulationCanvas" width="600" height="600"></canvas>
 
+    <div class="sound-controls">
+        <div class="control-group">
+            <label for="soundVolume">Sound volume:</label>
+            <input type="range" id="soundVolume" min="0" max="1" value="0.5" step="0.05">
+            <span id="soundVolumeValue">0.50</span>
+        </div>
+        <button id="toggleSoundBtn">Activate sound</button>
+    </div>
+
     <div class="controls">
         <div class="control-group">
-            <label for="numBirds">Number of Birds:</label>
+            <label for="numBirds">Number of birds:</label>
             <input type="range" id="numBirds" min="10" max="500" value="200" step="10">
             <span id="numBirdsValue">200</span>
         </div>
 
         <div class="control-group">
-            <label for="radius">Interaction Radius:</label>
+            <label for="radius">Interaction radius:</label>
             <input type="range" id="radius" min="10" max="100" value="50" step="5">
             <span id="radiusValue">50</span>
         </div>
 
         <div class="control-group">
-            <label for="noise">Noise Level (η):</label>
+            <label for="noise">Noise level (η):</label>
             <input type="range" id="noise" min="0" max="1" value="0.15" step="0.05">
             <span id="noiseValue">0.15</span>
         </div>
@@ -95,17 +156,68 @@
         <div class="control-group">
             <label for="speed">Speed:</label>
             <input type="range" id="speed" min="0.5" max="3" value="1" step="0.1">
-            <span id="speedValue">1</span>
+            <span id="speedValue">1.0</span>
         </div>
 
-        <button id="resetBtn">Reset Simulation</button>
+        <div class="control-group">
+            <label for="scarecrowRadius">Scarecrow radius:</label>
+            <input type="range" id="scarecrowRadius" min="20" max="200" value="80" step="10">
+            <span id="scarecrowRadiusValue">80</span>
+        </div>
+
+        <div class="control-group">
+            <label for="scareFactor">Scare intensity:</label>
+            <input type="range" id="scareFactor" min="1" max="10" value="5" step="0.5">
+            <span id="scareFactorValue">5.0</span>
+        </div>
+
+        <button id="resetBtn">Restart simulation</button>
     </div>
 
     <div class="info">
-        <p>This simulation implements the <strong>Vicsek Model</strong> to study flocking behavior. Each bird adjusts its direction based on the average of its nearby neighbors, plus a random noise factor.</p>
-        <p>You can adjust the parameters to see how they affect the emergent behavior of the system.</p>
+        <p>This simulation implements the <strong>Vicsek model</strong> to study the behaviour of a flock of birds. In a nutshell: Simple local rules lead to global collective motion. It's a basic but powerful model for understanding how groups of things can self-organize and move together, like birds flocking or fish schooling. A scarecrow is implemented to see the interaction of the flock with an external stimulus that breaks the collective motion.</p>
+        <p><strong>How to:</strong></p>
+        <ul>
+            <li>Move the cursor over the canvas to control the scarecrow.</li>
+            <li>Click to scare nearby birds and activate the sound.</li>
+        </ul>
+        <p><strong>Parameters:</strong></p>
+        <ul>
+            <li>Average velocity of the center of mass: Imagine you find the exact middle point of the whole group of moving particles. Its speed tells you how fast the entire group is moving together in a specific direction.</li>
+            <p> V<sub>CM</sub> = (1/N) * Σ (v<sub>i</sub>)
+                <ul>
+                    <li>N = total number of particles</li>
+                    <li>v<sub>i</sub> = velocity vector of the i-th particle</li>
+                    <li>Σ = sum over all particles</li>
+                </ul>
+            </p>
+            <li>Global order (polarization): Think of it like a group dance. If everyone is moving in almost the same direction, the dance is very ordered. Polarization measures how "in sync" all the particles are in their movement direction, from perfectly aligned to completely random.</li>
+            <p> φ = | (1/N) * Σ (v̂<sub>i</sub>) |
+                <ul>
+                    <li>N = total number of particles</li>
+                    <li>v̂<sub>i</sub> = *unit* velocity vector of the i-th particle</li>
+                    <li>Σ = sum over all particles</li>
+                    <li>| ... | = magnitude of the vector</li>
+                </ul>
+        </ul>
+        
+        <p><strong>Sound characteristics:</strong></p>
+        <ul>
+            <li>Each bird has a note associated with its direction in Lydian mode (mapped to C3, C4, C5).</li>
+            <li>Clicking the scarecrow plays a low C (triangle synth).</li>
+            <li>Birds affected by the sound wave play their notes according to their direction.</li>
+        </ul>
+        
+        <p> ...
+        <p></strong>Credits: Itxaso Muñoz-Aldalur (GitHub: itxasoma).
     </div>
 
+    
+   
+
+    
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <script>
         // Simulation configuration
         const canvas = document.getElementById('simulationCanvas');
@@ -118,9 +230,123 @@
         let radius = 50;
         let noise = 0.15;
         let speed = 1;
+        let scarecrowRadius = 80;
+        let scareFactor = 5;
+        let soundVolume = 0.5;
+        let soundEnabled = false;
 
         // Birds state
         let birds = [];
+
+        // Mouse position
+        let mouseX = width / 2;
+        let mouseY = height / 2;
+
+        // Sound waves
+        let soundWaves = [];
+
+        // Stats
+        let avgVelocityValue = document.getElementById('avgVelocity');
+        let orderParameterValue = document.getElementById('orderParameter');
+
+        // Audio setup
+        let synth;
+        let marimba; // Now uses xylophone samples, but still named marimba
+        let bassSynth;
+        const bassC = 'C2';
+
+        // Lydian mode notes (C Lydian: C, D, E, F#, G, A, B) - still used for mapping logic
+        const lydianNotes = [
+            'C3', 'D3', 'E3', 'F#3', 'G3', 'A3', 'B3',
+            'C4', 'D4', 'E4', 'F#4', 'G4', 'A4', 'B4',
+            'C5'
+        ];
+
+        // ---- INICIO CÓDIGO MODIFICADO: initAudio ----
+        // Modificación del sonido para xilófono de madera
+        async function initAudio() {
+            await Tone.start();
+            console.log('Audio is ready');
+
+            // Crear xilófono de madera con samples de mejor calidad
+            // Nota: La variable sigue siendo 'marimba', pero carga samples de xilófono.
+            //       El código `playBirdNote` sigue usando `synth` por defecto.
+            //       Si quisieras usar estos samples, necesitarías modificar `playBirdNote` para usar `marimba`.
+            marimba = new Tone.Sampler({
+                urls: {
+                    C3: "https://tonejs.github.io/audio/salamander/xylophone-c3.mp3",
+                    C4: "https://tonejs.github.io/audio/salamander/xylophone-c4.mp3",
+                    C5: "https://tonejs.github.io/audio/salamander/xylophone-c5.mp3",
+                },
+                release: 1,
+                // baseUrl: "https://tonejs.github.io/audio/salamander/", // Ya incluido en urls
+            }).toDestination();
+
+            // Create bass synth for the low C
+            bassSynth = new Tone.Synth({
+                oscillator: {
+                    type: "triangle" // Más suave que sine
+                },
+                envelope: {
+                    attack: 0.02,
+                    decay: 1.5,
+                    sustain: 0.5,
+                    release: 2.5
+                }
+            }).toDestination();
+
+            // Xilófono sintético (triangle) para notas de pájaros
+            synth = new Tone.PolySynth(Tone.Synth, {
+                oscillator: {
+                    type: "triangle"
+                },
+                envelope: {
+                    attack: 0.01,
+                    decay: 0.2,
+                    sustain: 0.1,
+                    release: 0.8 // Cola más corta, más percusiva
+                }
+            }).toDestination();
+
+            // Set initial volume
+            synth.volume.value = Tone.gainToDb(soundVolume);
+            bassSynth.volume.value = Tone.gainToDb(soundVolume + 0.2); // Slightly louder bass
+            marimba.volume.value = Tone.gainToDb(soundVolume); // Set volume for the sampler too
+
+            soundEnabled = true;
+            document.getElementById('toggleSoundBtn').textContent = "Desactivar sonido";
+        }
+        // ---- FIN CÓDIGO MODIFICADO: initAudio ----
+
+
+        // Get note based on bird orientation
+        function getNoteFromOrientation(orientation) {
+            // Map orientation angle (-π to π) to lydian scale index
+            const normalizedAngle = (orientation + Math.PI) / (2 * Math.PI); // 0 to 1
+            const index = Math.floor(normalizedAngle * lydianNotes.length);
+            return lydianNotes[index % lydianNotes.length];
+        }
+
+        // Play bass C note
+        function playBassC() {
+            if (!soundEnabled || !bassSynth) return;
+
+            bassSynth.volume.value = Tone.gainToDb(soundVolume + 0.2);
+            bassSynth.triggerAttackRelease(bassC, '10n', Tone.now()); // Added Tone.now() for precision
+        }
+
+        // Play bird note using the PolySynth ('synth')
+        function playBirdNote(bird) {
+            if (!soundEnabled || !synth) return;
+
+            const note = getNoteFromOrientation(bird.orientation);
+            // Velocity based on fear intensity
+            const velocity = 0.3 + bird.scareIntensity * 0.7;
+            // Duration based on fear (shorter when more scared)
+            const duration = Math.max(0.05, 0.3 - bird.scareIntensity * 0.2); // Ensure minimum duration
+
+            synth.triggerAttackRelease(note, duration, Tone.now(), velocity);
+        }
 
         // Function to initialize the simulation
         function initializeSimulation() {
@@ -129,70 +355,170 @@
                 birds.push({
                     x: Math.random() * width,
                     y: Math.random() * height,
-                    // Random orientation in radians
-                    orientation: Math.random() * 2 * Math.PI - Math.PI
+                    orientation: Math.random() * 2 * Math.PI - Math.PI, // Random orientation in radians
+                    vx: 0, // Velocity components for stats
+                    vy: 0,
+                    scared: false, // Flag if affected by scarecrow/sound
+                    scareIntensity: 0, // How scared (0 to 1)
+                    lastSoundTime: 0 // To throttle bird sounds
                 });
             }
+            updateVelocities(); // Initialize velocities based on new orientations/speed
+            soundWaves = []; // Clear sound waves on reset
         }
 
-        // Function to update bird states
+        // Function to update velocity components based on orientation and speed
+        function updateVelocities() {
+            birds.forEach(bird => {
+                bird.vx = Math.cos(bird.orientation) * speed;
+                bird.vy = Math.sin(bird.orientation) * speed;
+            });
+        }
+
+        // Function to calculate order parameters
+        function calculateOrderParameters() {
+            let vxSum = 0;
+            let vySum = 0;
+            let sumSin = 0;
+            let sumCos = 0;
+
+            if (birds.length === 0) {
+                avgVelocityValue.textContent = (0).toFixed(3);
+                orderParameterValue.textContent = (0).toFixed(3);
+                return { centerMassSpeed: 0, polarization: 0 };
+            }
+
+            birds.forEach(bird => {
+                // Use current velocity for center of mass calculation
+                vxSum += bird.vx;
+                vySum += bird.vy;
+                // Use orientation for polarization calculation
+                sumSin += Math.sin(bird.orientation);
+                sumCos += Math.cos(bird.orientation);
+            });
+
+            const vxAvg = vxSum / birds.length;
+            const vyAvg = vySum / birds.length;
+            const centerMassSpeed = Math.sqrt(vxAvg * vxAvg + vyAvg * vyAvg);
+
+            const avgSin = sumSin / birds.length;
+            const avgCos = sumCos / birds.length;
+            const polarization = Math.sqrt(avgSin * avgSin + avgCos * avgCos);
+
+            avgVelocityValue.textContent = centerMassSpeed.toFixed(3);
+            orderParameterValue.textContent = polarization.toFixed(3);
+
+            return { centerMassSpeed, polarization };
+        }
+
+        // Function to update bird states (Vicsek model + interactions)
         function updateBirds() {
             const newOrientations = new Array(birds.length);
+            const nowTime = Tone.now() * 1000; // Use Tone.now() for time, convert to ms
 
-            // For each bird, find neighbors and calculate average orientation
+            // Calculate new orientation based on neighbors and interactions
             for (let i = 0; i < birds.length; i++) {
                 const bird = birds[i];
                 let sumSin = 0;
                 let sumCos = 0;
-                let count = 0;
+                let neighborCount = 0; // Count actual neighbors
 
-                // Include the bird itself in the calculation
-                sumSin += Math.sin(bird.orientation);
-                sumCos += Math.cos(bird.orientation);
-                count++;
-
-                // Find neighbors within radius
+                // Find neighbors within radius (using periodic boundaries)
                 for (let j = 0; j < birds.length; j++) {
-                    if (i === j) continue;
+                    // if (i === j) continue; // Original Vicsek often includes self, let's keep it simple for now
 
                     const neighbor = birds[j];
-                    // Calculate distance considering periodic boundary conditions
-                    let dx = Math.abs(bird.x - neighbor.x);
-                    let dy = Math.abs(bird.y - neighbor.y);
+                    const dist = getDistance(bird.x, bird.y, neighbor.x, neighbor.y);
 
-                    // Periodic boundary conditions
-                    dx = dx > width / 2 ? width - dx : dx;
-                    dy = dy > height / 2 ? height - dy : dy;
-
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-
-                    if (distance <= radius) {
+                    if (dist <= radius) {
                         sumSin += Math.sin(neighbor.orientation);
                         sumCos += Math.cos(neighbor.orientation);
-                        count++;
+                        neighborCount++;
                     }
                 }
 
-                // Calculate new orientation
-                if (count > 0) {
-                    // Average orientation of neighbors
-                    const avgOrientation = Math.atan2(sumSin / count, sumCos / count);
-                    // Add noise
-                    newOrientations[i] = avgOrientation + (Math.random() * 2 * Math.PI - Math.PI) * noise;
-                } else {
-                    // If no neighbors, keep current orientation
-                    newOrientations[i] = bird.orientation;
+                // Calculate average orientation from neighbors
+                let avgOrientation = bird.orientation; // Default to current if no neighbors
+                if (neighborCount > 0) {
+                    avgOrientation = Math.atan2(sumSin / neighborCount, sumCos / neighborCount);
                 }
+
+                // Add noise
+                let currentOrientation = avgOrientation + (Math.random() * 2 * Math.PI - Math.PI) * noise;
+
+
+                // Interactions (Scarecrow and Sound Waves) modify the orientation
+                const wasScared = bird.scared;
+                const prevIntensity = bird.scareIntensity;
+                let isScaredByMouse = false;
+                let maxScareIntensity = 0;
+
+                // 1. Scarecrow Interaction
+                const scarecrowDist = getDistance(bird.x, bird.y, mouseX, mouseY);
+                if (mouseX >= 0 && scarecrowDist < scarecrowRadius) { // Check if mouse is on canvas
+                    const awayAngle = Math.atan2(bird.y - mouseY, bird.x - mouseX);
+                    const fleeWeight = (1 - scarecrowDist / scarecrowRadius) * scareFactor * 0.2; // Use scareFactor
+                    // Blend orientation towards fleeing angle
+                    currentOrientation = blendAngles(currentOrientation, awayAngle, Math.min(fleeWeight, 1));
+                    isScaredByMouse = true;
+                    maxScareIntensity = Math.max(maxScareIntensity, Math.min(fleeWeight, 1));
+                }
+
+                // 2. Sound Wave Interaction
+                soundWaves.forEach(wave => {
+                    const distToWave = getDistance(bird.x, bird.y, wave.x, wave.y);
+                    // Check if bird is within the expanding wave shell
+                    if (distToWave >= wave.innerRadius && distToWave <= wave.radius) {
+                         const intensity = (1 - (distToWave - wave.innerRadius) / (wave.radius - wave.innerRadius)) * wave.intensity;
+                         if (intensity > 0.05) { // Threshold
+                             const awayAngle = Math.atan2(bird.y - wave.y, bird.x - wave.x);
+                             // Blend orientation towards fleeing angle based on wave intensity
+                             currentOrientation = blendAngles(currentOrientation, awayAngle, Math.min(intensity, 1));
+                             maxScareIntensity = Math.max(maxScareIntensity, Math.min(intensity, 1));
+
+                             // Trigger sound if newly scared by the wave or intensity increased significantly
+                             // Use a shorter timeout for wave reaction sounds
+                              if (maxScareIntensity > prevIntensity + 0.1) { // If intensity significantly increased
+                                 if (nowTime - bird.lastSoundTime > 150) { // Shorter cooldown for wave sounds
+                                     bird.lastSoundTime = nowTime;
+                                     // Temporarily set scareIntensity for sound playback properties
+                                     const tempIntensity = bird.scareIntensity;
+                                     bird.scareIntensity = maxScareIntensity;
+                                     playBirdNote(bird);
+                                     bird.scareIntensity = tempIntensity; // Restore previous intensity for movement logic
+                                 }
+                             }
+                         }
+                    }
+                });
+
+                // Update final orientation
+                newOrientations[i] = currentOrientation;
+
+                // Update scare state and intensity (decay if not currently scared)
+                 if (maxScareIntensity > 0 || isScaredByMouse) {
+                     bird.scared = true;
+                     // Increase intensity towards max detected scare, but don't decrease yet
+                     bird.scareIntensity = Math.min(bird.scareIntensity + maxScareIntensity * 0.2, 1); // Gradual increase
+                 } else {
+                     bird.scared = false;
+                     bird.scareIntensity = Math.max(bird.scareIntensity - 0.03, 0); // Gradual decay
+                 }
             }
 
-            // Update orientations and positions
+            // Update positions based on new orientations and velocities
             for (let i = 0; i < birds.length; i++) {
                 const bird = birds[i];
                 bird.orientation = newOrientations[i];
 
-                // Update position based on orientation
-                bird.x += Math.cos(bird.orientation) * speed;
-                bird.y += Math.sin(bird.orientation) * speed;
+                // Speed increases when scared
+                const currentSpeed = speed * (1 + bird.scareIntensity * 1.5); // Make speed boost more pronounced
+
+                bird.vx = Math.cos(bird.orientation) * currentSpeed;
+                bird.vy = Math.sin(bird.orientation) * currentSpeed;
+
+                bird.x += bird.vx;
+                bird.y += bird.vy;
 
                 // Periodic boundary conditions
                 if (bird.x < 0) bird.x += width;
@@ -200,54 +526,333 @@
                 if (bird.y < 0) bird.y += height;
                 if (bird.y >= height) bird.y -= height;
             }
+
+             // Update sound waves
+            soundWaves = soundWaves.filter(wave => {
+                wave.innerRadius += wave.speed;
+                wave.radius += wave.speed;
+                wave.intensity *= 0.97; // Attenuate intensity
+                // Remove waves that are too large or too weak
+                return wave.innerRadius < Math.max(width, height) * 1.5 && wave.intensity > 0.01;
+            });
+
+            calculateOrderParameters(); // Calculate stats after updates
         }
 
-        // Function to draw the birds
+        // Function to draw the simulation
         function drawBirds() {
             ctx.clearRect(0, 0, width, height);
 
-            // Draw each bird as an arrow indicating its direction
+            // Draw sound waves first (background)
+            soundWaves.forEach(wave => {
+                ctx.beginPath();
+                ctx.arc(wave.x, wave.y, wave.radius, 0, Math.PI * 2);
+                // Make wave visible even at low intensity, fade out alpha
+                const alpha = Math.min(wave.intensity * 2, 0.5);
+                ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                // Optionally draw inner radius for debugging
+                // ctx.beginPath();
+                // ctx.arc(wave.x, wave.y, wave.innerRadius, 0, Math.PI * 2);
+                // ctx.strokeStyle = `rgba(255, 0, 0, ${alpha})`;
+                // ctx.lineWidth = 1;
+                // ctx.stroke();
+            });
+
+            // Draw birds
             birds.forEach(bird => {
                 ctx.save();
                 ctx.translate(bird.x, bird.y);
                 ctx.rotate(bird.orientation);
 
-                // Draw a triangle to represent the bird
+                // Draw bird shape (triangle)
                 ctx.beginPath();
-                ctx.moveTo(10, 0);
-                ctx.lineTo(-5, -5);
-                ctx.lineTo(-2, 0);
-                ctx.lineTo(-5, 5);
+                ctx.moveTo(10, 0); // Nose
+                ctx.lineTo(-5, -5); // Wing back
+                ctx.lineTo(-2, 0); // Tail center
+                ctx.lineTo(-5, 5); // Other wing back
                 ctx.closePath();
 
-                // Color based on orientation for better visualization
+                // Color based on orientation (hue)
                 const hue = ((bird.orientation + Math.PI) / (2 * Math.PI)) * 360;
-                ctx.fillStyle = `hsl(${hue}, 90%, 70%)`;
+                let fillStyle;
+                let strokeStyle;
+                let shadowColor;
+                let shadowBlur = 5;
+
+                if (bird.scareIntensity > 0) {
+                    // Blend towards red/orange when scared
+                    const scaredHue = lerp(hue, 30, bird.scareIntensity); // Blend towards orange (30)
+                    const lightness = 70 + bird.scareIntensity * 20; // Brighter when scared
+                    fillStyle = `hsl(${scaredHue}, 95%, ${lightness}%)`;
+                    strokeStyle = `rgba(255, ${255 * (1 - bird.scareIntensity)}, ${255 * (1 - bird.scareIntensity)}, 0.9)`;
+                    shadowColor = `rgba(255, ${100 * (1 - bird.scareIntensity)}, ${50 * (1 - bird.scareIntensity)}, 0.7)`;
+                    shadowBlur = 5 + bird.scareIntensity * 10; // More blur when scared
+                } else {
+                    fillStyle = `hsl(${hue}, 90%, 70%)`;
+                    strokeStyle = `hsl(${hue}, 90%, 80%)`;
+                    shadowColor = `hsl(${hue}, 90%, 50%)`;
+                }
+
+                ctx.fillStyle = fillStyle;
+                ctx.shadowColor = shadowColor;
+                ctx.shadowBlur = shadowBlur;
                 ctx.fill();
 
-                // Add a slight glow effect
-                ctx.shadowColor = `hsl(${hue}, 90%, 50%)`;
-                ctx.shadowBlur = 5;
-                ctx.strokeStyle = `hsl(${hue}, 90%, 80%)`;
+                // Outline
+                ctx.strokeStyle = strokeStyle;
                 ctx.lineWidth = 1;
+                ctx.shadowColor = 'transparent'; // Turn off shadow for stroke
                 ctx.stroke();
 
                 ctx.restore();
             });
+
+             // Draw scarecrow (cursor) if mouse is over canvas
+             if (mouseX >= 0 && mouseX <= width && mouseY >= 0 && mouseY <= height) {
+                 ctx.save();
+                 ctx.translate(mouseX, mouseY);
+
+                 // Draw scarecrow interaction radius
+                 ctx.beginPath();
+                 ctx.arc(0, 0, scarecrowRadius, 0, Math.PI * 2);
+                 ctx.strokeStyle = "rgba(255, 50, 50, 0.3)"; // Reddish transparent circle
+                 ctx.lineWidth = 2;
+                 ctx.stroke();
+
+                 // ---- INICIO CÓDIGO MEJORADO: Dibujo Espantapájaros (Basado en SVG) ----
+                 ctx.save(); // Save style state before drawing specific parts
+
+                 // Styles from SVG (can be overridden per element)
+                 const fillBrown = "#b08d57";
+                 const fillYellowish = "#e0c068";
+                 const fillGray = "#bbbbbb";
+                 const fillDarkGray = "#444444";
+                 const fillPoleGray = "#777777";
+                 const strokeBlack = "#000000";
+                 const strokeWidthBody = 1.5;
+                 const strokeWidthPole = 1;
+                 const strokeWidthHatLines = 1;
+
+                 // --- Draw elements in approximate back-to-front order ---
+
+                 // 1. Pointed stake/pole (Bottom)
+                 ctx.fillStyle = fillPoleGray;
+                 ctx.strokeStyle = strokeBlack;
+                 ctx.lineWidth = strokeWidthPole;
+                 ctx.fillRect(-1.5, 12, 3, 8);
+                 ctx.strokeRect(-1.5, 12, 3, 8);
+
+                 // 2. Brown shirt/body
+                 ctx.fillStyle = fillBrown;
+                 ctx.strokeStyle = strokeBlack;
+                 ctx.lineWidth = strokeWidthBody;
+                 ctx.beginPath();
+                 ctx.moveTo(-8, 0);
+                 ctx.lineTo(-8, 12);
+                 ctx.lineTo(-4, 9);
+                 ctx.lineTo(0, 12);
+                 ctx.lineTo(4, 9);
+                 ctx.lineTo(8, 12);
+                 ctx.lineTo(8, 0);
+                 ctx.closePath(); // Z in SVG path
+                 ctx.fill();
+                 ctx.stroke();
+
+                 // 3. Stitches on the shirt
+                 ctx.strokeStyle = strokeBlack;
+                 ctx.lineWidth = strokeWidthBody;
+                 ctx.lineCap = "round"; // stroke-linecap="round"
+                 ctx.beginPath();
+                 ctx.moveTo(-2, 6); ctx.lineTo(0, 6); // M -2 6 L 0 6
+                 ctx.moveTo(-2, 8); ctx.lineTo(0, 8); // M -2 8 L 0 8
+                 ctx.stroke();
+                 ctx.lineCap = "butt"; // Reset lineCap if needed for subsequent strokes
+
+                 // 4. Left arm
+                 ctx.fillStyle = fillBrown;
+                 ctx.strokeStyle = strokeBlack;
+                 ctx.lineWidth = strokeWidthBody;
+                 ctx.beginPath();
+                 ctx.moveTo(-8, 0);
+                 ctx.lineTo(-14, 0);
+                 ctx.lineTo(-16, -2);
+                 ctx.lineTo(-14, -4);
+                 ctx.lineTo(-8, -4);
+                 // Implicit close for fill, but SVG defines it open - draw as defined
+                 ctx.fill();
+                 ctx.stroke(); // Stroke the open path
+
+                 // 5. Right arm
+                 ctx.fillStyle = fillBrown;
+                 ctx.strokeStyle = strokeBlack;
+                 ctx.lineWidth = strokeWidthBody;
+                 ctx.beginPath();
+                 ctx.moveTo(8, 0);
+                 ctx.lineTo(14, 0);
+                 ctx.lineTo(16, -2);
+                 ctx.lineTo(14, -4);
+                 ctx.lineTo(8, -4);
+                 // Implicit close for fill, draw as defined
+                 ctx.fill();
+                 ctx.stroke(); // Stroke the open path
+
+                 // 6. Jagged collar
+                 ctx.fillStyle = fillYellowish;
+                 ctx.strokeStyle = strokeBlack;
+                 ctx.lineWidth = strokeWidthBody;
+                 ctx.beginPath();
+                 ctx.moveTo(-8, -4);
+                 ctx.lineTo(-6, -6);
+                 ctx.lineTo(-4, -4);
+                 ctx.lineTo(-2, -6);
+                 ctx.lineTo(0, -4);
+                 ctx.lineTo(2, -6);
+                 ctx.lineTo(4, -4);
+                 ctx.lineTo(6, -6);
+                 ctx.lineTo(8, -4);
+                 // Implicit close for fill, draw as defined
+                 ctx.fill();
+                 ctx.stroke(); // Stroke the open path
+
+                 // 7. Gray face/head
+                 ctx.fillStyle = fillGray;
+                 ctx.strokeStyle = strokeBlack;
+                 ctx.lineWidth = strokeWidthBody;
+                 ctx.beginPath();
+                 ctx.arc(0, -8, 4, 0, Math.PI * 2); // cx, cy, r
+                 ctx.fill();
+                 ctx.stroke();
+
+                 // 8. Witch hat
+                 ctx.fillStyle = fillDarkGray;
+                 ctx.strokeStyle = strokeBlack;
+                 ctx.lineWidth = strokeWidthBody;
+                 ctx.beginPath();
+                 ctx.moveTo(-8, -8);
+                 ctx.lineTo(8, -8);
+                 ctx.lineTo(6, -10);
+                 ctx.lineTo(2, -10);
+                 ctx.lineTo(4, -16);
+                 ctx.lineTo(0, -12); // Note: coordinate correction based on visual SVG shape
+                 ctx.lineTo(-6, -10);
+                 ctx.lineTo(-8, -8);
+                 ctx.closePath(); // Z in SVG path
+                 ctx.fill();
+                 ctx.stroke();
+
+                 // 9. Hat stripes
+                 ctx.strokeStyle = strokeBlack;
+                 ctx.lineWidth = strokeWidthHatLines;
+                 ctx.beginPath();
+                 ctx.moveTo(-6, -9); ctx.lineTo(6, -9);   // Line 1
+                 ctx.moveTo(-4, -11); ctx.lineTo(4, -11); // Line 2
+                 ctx.moveTo(-2, -13); ctx.lineTo(2, -13); // Line 3
+                 ctx.stroke();
+
+                 ctx.restore(); // Restore saved style state
+                 // ---- FIN CÓDIGO MEJORADO: Dibujo Espantapájaros (Basado en SVG) ----
+
+                 ctx.restore(); // Restore context state from before translate
+             }
+        }
+
+        // Utility function for periodic distance
+        function getDistance(x1, y1, x2, y2) {
+            let dx = Math.abs(x1 - x2);
+            let dy = Math.abs(y1 - y2);
+
+            if (dx > width / 2) dx = width - dx;
+            if (dy > height / 2) dy = height - dy;
+
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        // Utility function to blend angles (shortest path)
+        function blendAngles(angle1, angle2, weight) {
+            const diff = angle2 - angle1;
+            const shortestDiff = Math.atan2(Math.sin(diff), Math.cos(diff)); // Handle wrap-around
+            return angle1 + shortestDiff * weight;
+        }
+
+         // Utility function for linear interpolation
+         function lerp(start, end, amount) {
+             return start * (1 - amount) + end * amount;
+         }
+
+
+        // Function to create a sound wave on click
+        function createSoundWave(x, y) {
+            if (soundEnabled) {
+                playBassC(); // Play the scare sound
+            }
+
+            soundWaves.push({
+                x: x,
+                y: y,
+                radius: 10, // Initial outer radius
+                innerRadius: 0, // Initial inner radius
+                speed: 5, // Expansion speed pixels/frame
+                intensity: Math.max(0.1, scareFactor / 10) // Initial intensity, minimum 0.1
+            });
+
+            // Create visual feedback for sound wave (CSS animation)
+            const waveElement = document.createElement('div');
+            waveElement.className = 'sound-wave';
+            // Position relative to the document, considering canvas offset
+            const rect = canvas.getBoundingClientRect();
+            const effectiveRadius = scarecrowRadius * (scareFactor / 5); // Visual wave size related to scare factor
+            waveElement.style.left = (rect.left + window.scrollX + x - effectiveRadius) + 'px';
+            waveElement.style.top = (rect.top + window.scrollY + y - effectiveRadius) + 'px';
+            waveElement.style.width = (effectiveRadius * 2) + 'px';
+            waveElement.style.height = (effectiveRadius * 2) + 'px';
+            // Adjust border color alpha based on scareFactor
+            waveElement.style.borderColor = `rgba(255, 255, 255, ${Math.min(0.7, 0.3 + scareFactor / 10)})`;
+            document.body.appendChild(waveElement);
+
+            // Remove the element after animation completes (2s)
+            setTimeout(() => {
+                if (waveElement.parentNode) {
+                     document.body.removeChild(waveElement);
+                }
+            }, 2000);
+        }
+
+        // Toggle sound function
+        function toggleSound() {
+            if (!Tone.context || Tone.context.state !== 'running') {
+                initAudio().then(() => {
+                     console.log("Audio Context started by toggle");
+                     soundEnabled = true;
+                     document.getElementById('toggleSoundBtn').textContent = "Desactivar sonido";
+                }).catch(e => console.error("Error starting audio:", e));
+            } else {
+                soundEnabled = !soundEnabled;
+                document.getElementById('toggleSoundBtn').textContent =
+                    soundEnabled ? "Desactivar sonido" : "Activar sonido";
+                if (!soundEnabled) {
+                     // Optionally stop all sounds
+                     if (synth) synth.releaseAll();
+                     if (bassSynth) bassSynth.triggerRelease();
+                     if (marimba) marimba.releaseAll();
+                     soundWaves = []; // Clear waves when disabling sound
+                }
+            }
         }
 
         // Main animation loop
         function animate() {
             updateBirds();
             drawBirds();
-            requestAnimationFrame(animate);
+            requestAnimationFrame(animate); // Loop
         }
 
-        // Initialize and start the simulation
+        // --- Initialize and Setup ---
         initializeSimulation();
-        animate();
+        animate(); // Start animation loop
 
-        // Set up interface controls
+        // Setup interface controls
         const numBirdsSlider = document.getElementById('numBirds');
         const numBirdsValue = document.getElementById('numBirdsValue');
         const radiusSlider = document.getElementById('radius');
@@ -257,31 +862,83 @@
         const speedSlider = document.getElementById('speed');
         const speedValue = document.getElementById('speedValue');
         const resetBtn = document.getElementById('resetBtn');
+        const scarecrowRadiusSlider = document.getElementById('scarecrowRadius');
+        const scarecrowRadiusValue = document.getElementById('scarecrowRadiusValue');
+        const scareFactorSlider = document.getElementById('scareFactor');
+        const scareFactorValue = document.getElementById('scareFactorValue');
+        const soundVolumeSlider = document.getElementById('soundVolume');
+        const soundVolumeValue = document.getElementById('soundVolumeValue');
+        const toggleSoundBtn = document.getElementById('toggleSoundBtn');
 
-        numBirdsSlider.addEventListener('input', function() {
-            numBirds = parseInt(this.value);
+        // Event listeners for controls
+        numBirdsSlider.addEventListener('input', (e) => {
+            numBirds = parseInt(e.target.value);
             numBirdsValue.textContent = numBirds;
-            initializeSimulation();
+            initializeSimulation(); // Reinitialize with new number
         });
 
-        radiusSlider.addEventListener('input', function() {
-            radius = parseInt(this.value);
+        radiusSlider.addEventListener('input', (e) => {
+            radius = parseInt(e.target.value);
             radiusValue.textContent = radius;
         });
 
-        noiseSlider.addEventListener('input', function() {
-            noise = parseFloat(this.value);
+        noiseSlider.addEventListener('input', (e) => {
+            noise = parseFloat(e.target.value);
             noiseValue.textContent = noise.toFixed(2);
         });
 
-        speedSlider.addEventListener('input', function() {
-            speed = parseFloat(this.value);
+        speedSlider.addEventListener('input', (e) => {
+            speed = parseFloat(e.target.value);
             speedValue.textContent = speed.toFixed(1);
+            updateVelocities(); // Update base velocities immediately
         });
 
-        resetBtn.addEventListener('click', function() {
-            initializeSimulation();
+        scarecrowRadiusSlider.addEventListener('input', (e) => {
+            scarecrowRadius = parseInt(e.target.value);
+            scarecrowRadiusValue.textContent = scarecrowRadius;
         });
+
+        scareFactorSlider.addEventListener('input', (e) => {
+            scareFactor = parseFloat(e.target.value);
+            scareFactorValue.textContent = scareFactor.toFixed(1);
+        });
+
+        resetBtn.addEventListener('click', initializeSimulation);
+
+        // Sound controls
+        soundVolumeSlider.addEventListener('input', (e) => {
+            soundVolume = parseFloat(e.target.value);
+            soundVolumeValue.textContent = soundVolume.toFixed(2);
+            if (synth) synth.volume.value = Tone.gainToDb(soundVolume);
+            if (bassSynth) bassSynth.volume.value = Tone.gainToDb(soundVolume + 0.2); // Keep bass slightly louder relative
+            if (marimba) marimba.volume.value = Tone.gainToDb(soundVolume);
+        });
+
+        toggleSoundBtn.addEventListener('click', toggleSound);
+
+
+        // Mouse tracking for scarecrow
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            mouseX = e.clientX - rect.left;
+            mouseY = e.clientY - rect.top;
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            // Move scarecrow off-screen or to center when mouse leaves
+            mouseX = -1000; // Or width / 2;
+            mouseY = -1000; // Or height / 2;
+        });
+
+        // Mouse click for scaring and sound wave
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+            createSoundWave(clickX, clickY);
+        });
+
     </script>
 </body>
 </html>
+
