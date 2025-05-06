@@ -25,3 +25,6 @@ Sound characteristics:
 ...
 
 Credits: Itxaso Muñoz-Aldalur (GitHub: itxasoma).
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
